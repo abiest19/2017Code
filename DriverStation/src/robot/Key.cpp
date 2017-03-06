@@ -1,31 +1,54 @@
 #include "Key.h"
 
-Key::Key(){
-	
+Key::Key() :
+shoulderPid(PID::distance, SHOULDER_KP, SHOULDER_KI, SHOULDER_KD),
+wristPid(PID::distance, WRIST_KP, WRIST_KI, WRIST_KD)
+{
+	lastGrabKey = false;
+	state = manual;
+	shoulderPid.setOutputLimits(0, 180);
+	wristPid.setOutputLimits(0, 180);
 }
 
 void Key::periodic(const RobotIn& rIn, RobotOut& rOut){
-	/*
-	const int buttonPin = ; //the number of the push button pin
-	const int relayPin = ; //the number of the relay pin 
-	const int buttonState = 0; //variable that will change as button is pushed
-
-	void setup() {
-
-		//initialize buttonPin as the input
-		pinmode(buttonPin, INPUT);
-		//initialize relayPin as the output to solenoid
-		pinmode(relayPin, OUTPUT);
-
+	if(CTRL_RETRIEVE_POS){
+		state = retrieve;
+		shoulderPid.setTarget(SHOULDER_RET_POS);
+		shoulderPid.reset();
+		wristPid.setTarget(WRIST_RET_POS);
+		wristPid.reset();
+	}
+	if(CTRL_INS_POS){
+		state = insert;
+		shoulderPid.setTarget(SHOULDER_INS_POS);
+		shoulderPid.reset();
+		wristPid.setTarget(WRIST_INS_POS);
+		wristPid.reset();
+	}
+	if(CTRL_MAN_SHOULDER != 0.0f){
+		state = manual;
+	}
+	if(CTRL_MAN_WRIST != 0.0f){
+		state = manual;
 	}
 
-	void loop() {
-
-		buttonState = digitalRead(buttonPin);
-		if (buttonState == HIGH) {
-			digitalWrite(relayPin,HIGH);
-
-		}
+	bool inPos = true;
+	switch(state){
+	case manual:
+		rOut.shoulder = uint8_t((CTRL_MAN_SHOULDER + 1) * 90);
+		rOut.wrist = uint8_t((CTRL_MAN_WRIST + 1) * 90);
+		break;
+	case retrieve:
+	case insert:
+		rOut.shoulder = (uint8_t)shoulderPid.compute(rIn.shoulder);
+		rOut.wrist = (uint8_t)wristPid.compute(rIn.wrist);
+		break;
 	}
-	*/
+
+	// grab key
+	bool isPressed = CTRL_GRAB_KEY;
+	if(isPressed && !lastGrabKey){
+		rOut.keyGrabber = !rOut.keyGrabber;
+	}
+	lastGrabKey = isPressed;
 }

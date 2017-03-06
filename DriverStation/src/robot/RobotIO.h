@@ -8,8 +8,8 @@ struct RobotIn{
 	uint8_t sonicDistanceR;
 	uint8_t sonicDistanceB;
 
-	uint8_t shoulder;
-	uint8_t wrist;
+	uint16_t shoulder;
+	uint16_t wrist;
 
 	RobotIn() :
 		gyroAngle(0.0f),
@@ -35,7 +35,6 @@ struct RobotOut{
 
 	uint8_t intake;
 	uint8_t score;
-	bool solenoid;
 	bool door;
 
 	RobotOut() :
@@ -49,7 +48,6 @@ struct RobotOut{
 		keyGrabber(false),
 		intake(90),
 		score(90),
-		solenoid(false),
 		door(false)
 	{}
 };
