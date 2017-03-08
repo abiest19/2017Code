@@ -1,6 +1,9 @@
 #pragma once
 #include <SFML/Window/Joystick.hpp>
 
+#define JOY0					(2)
+#define JOY1					(0)
+
 // Control macros
 #define LX						(sf::Joystick::X)
 #define LY						(sf::Joystick::Y)
@@ -29,26 +32,30 @@
 #define EXP_AXIS(IN, AXIS)		(EXP(RAW_AXIS(IN, AXIS)))
 
 #define GET_BUTTON(IN, BUT)		(sf::Joystick::isButtonPressed(IN, BUT))
+#define TG_DB					(30.0f)
+#define GET_RT(IN)		        (RAW_AXIS(IN, TG) < -TG_DB)
+#define GET_LT(IN)		        (RAW_AXIS(IN, TG) > TG_DB)
 
 // Controls
-#define CTRL_TRANS_X            ( EXP_AXIS(0, LX))
-#define CTRL_TRANS_Y            (-EXP_AXIS(0, LY))
-#define CTRL_ROT                ( EXP_AXIS(0, RX))
-#define CTRL_TANK_LEFT          (-EXP_AXIS(0, LY))
-#define CTRL_TANK_RIGHT         (-EXP_AXIS(0, RY))// need auto tunnel controls
+#define CTRL_TRANS_X            ( EXP_AXIS(JOY0, LX))
+#define CTRL_TRANS_Y            (-EXP_AXIS(JOY0, LY))
+#define CTRL_ROT                ( EXP_AXIS(JOY0, RX))
+#define CTRL_TANK_LEFT          (-EXP_AXIS(JOY0, LY))
+#define CTRL_TANK_RIGHT         (-EXP_AXIS(JOY0, RY))
 
-#define CTRL_GYRO_RESET         (GET_BUTTON(0, A_BUT))
-#define CTRL_GYRO_ROT_CCW       (GET_BUTTON(0, LB))
-#define CTRL_GYRO_ROT_CW        (GET_BUTTON(0, RB))
-#define CTRL_TOGGLE_MODE        (GET_BUTTON(0, START))
-#define CTRL_AUTO_MODE			(GET_BUTTON(0, B_BUT))
+#define CTRL_GYRO_RESET         (GET_BUTTON(JOY0, A_BUT))
+#define CTRL_GYRO_ROT_CCW       (GET_BUTTON(JOY0, LB))
+#define CTRL_GYRO_ROT_CW        (GET_BUTTON(JOY0, RB))
+#define CTRL_TOGGLE_MODE        (GET_BUTTON(JOY0, START))
+#define CTRL_AUTO_MODE			(GET_BUTTON(JOY0, B_BUT))
 
-#define CTRL_RETRIEVE_POS       (GET_BUTTON(1, RB))
-#define CTRL_INS_POS            (GET_BUTTON(1, LB))
-#define CTRL_GRAB_KEY           (GET_BUTTON(1, X_BUT))
-#define CTRL_MAN_SHOULDER       (DB_AXIS(1, RY))
-#define CTRL_MAN_WRIST          (DB_AXIS(1, LY))
+#define CTRL_RETRIEVE_POS       (GET_BUTTON(JOY1, RB))
+#define CTRL_INS_POS            (GET_LT(JOY1))
+#define CTRL_GRAB_KEY           (GET_BUTTON(JOY1, LB))
+#define CTRL_MAN_SHOULDER       (-DB_AXIS(JOY1, RY))
+#define CTRL_MAN_WRIST          (-DB_AXIS(JOY1, LY))
 
-#define CTRL_INTAKE             (GET_BUTTON(1, Y_BUT))
-#define CTRL_DOOR               (GET_BUTTON(1, A_BUT))
-#define CTRL_SCORE              (GET_BUTTON(1, B_BUT))
+#define CTRL_INTAKE             (GET_BUTTON(JOY1, Y_BUT))
+#define CTRL_DOOR_OUT           (GET_BUTTON(JOY1, A_BUT))
+#define CTRL_DOOR_UP            (GET_BUTTON(JOY1, B_BUT))
+#define CTRL_SCORE              (GET_BUTTON(JOY1, X_BUT))

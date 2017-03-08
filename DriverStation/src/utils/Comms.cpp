@@ -1,12 +1,10 @@
 #include "Comms.h"
 
-#define BUF_SIZE 2048
-
 Comms::Comms(){
 	enumerate_ports();
 
 	serial = NULL;
-	
+	bufferIndex = 0;
     in.gyroAngle = 0.0f;
 }
 
@@ -36,42 +34,68 @@ void Comms::setRobotOut(const RobotOut &newStruct) {
     out = newStruct;
 }
 
-
 bool Comms::read(){
 	if(serial == NULL){
         return false;
 	}
-    uint8_t buffer[BUF_SIZE];
     size_t size = serial->available();
-	size = size > BUF_SIZE ? BUF_SIZE : size;
-	if(size < 30){
+	size = size + bufferIndex > BUF_SIZE ? BUF_SIZE - bufferIndex : size;
+	//std::cout << "size=" << size << std::endl;
+	if(size < 26 - bufferIndex){
 		setOutBuf();
-		serial->write(outBuf, 14);
 		serial->write(outBuf, 14);
 		return false;
 	}
 	//std::cout << "size=" << size << std::endl;
-	serial->read(buffer, size);
-	for(int i = size - 1; i >= 14; i--) {
-        if (buffer[i] == 0xdd && buffer[i - 14] == 0xff) {
-            if (crc8.compute(&buffer[i - 13], 12) == buffer[i - 1]) {
-                float * temp = (float *)&buffer[i - 13];
-                if (*temp < 1000000)
-					in.gyroAngle = *temp;
-					//std::cout << "gyro angle=" << in.gyroAngle << std::endl;
-				in.sonicDistanceF = buffer[i - 9];
-				in.sonicDistanceL = buffer[i - 8];
-				in.sonicDistanceR = buffer[i - 7];
-				in.sonicDistanceB = buffer[i - 6];
-				in.shoulder = *((uint16_t*)(buffer+i-5));
-				in.wrist = *((uint16_t*)(buffer+i-3));
-                break;
-            }
-        }
-    }
+	serial->read(readBuf + bufferIndex, size);
+	size = size + bufferIndex;
+	bufferIndex = 0;
+
+	// if the start byte is not first we have a problem
+	while(readBuf[0] != 0xdd || readBuf[25] != crc8.compute(&readBuf[1], 24)){
+		// attempt to recover
+		size_t i;
+		for(i = 1; i<=size-26; i++)
+			if(readBuf[i] == 0xdd)
+				break;
+		if(i > size - 26){
+			// recovery failed
+			for(; i < size; i++)
+				if(readBuf[i] == 0xdd)
+					break;
+			if(i < size){
+				for(size_t j = i; j<size; j++){
+					readBuf[j - i] = readBuf[j];
+				}
+				bufferIndex = size - i;
+			}
+
+			setOutBuf();
+			serial->write(outBuf, 14);
+			return false;
+		} else{
+			// found possible start byte, attempt to read rest of message
+			for(size_t j = i; j<size; j++){
+				readBuf[j - i] = readBuf[j];
+			}
+		}
+		size -= i;
+	}
+
+	float * temp = (float *)&readBuf[1];
+	in.gyroAngle = *temp;
+	//std::cout << "gyro angle=" << in.gyroAngle << std::endl;
+	in.sonicDistanceF = *(temp + 1);
+	in.sonicDistanceL = *(temp + 2);
+	in.sonicDistanceR = *(temp + 3);
+	in.sonicDistanceB = *(temp + 4);
+	in.shoulder = *((uint16_t*)(readBuf + 21));
+	std::cout << "shoulder=" << in.shoulder << std::endl;
+	in.wrist = *((uint16_t*)(readBuf + 23));
+
 	while(size = serial->available()){
 		size = size > BUF_SIZE ? BUF_SIZE : size;
-		serial->read(buffer, size);
+		serial->read(readBuf, size);
 	}
 	return true;
 }
@@ -87,8 +111,7 @@ bool Comms::write(){
 		serial->read(buffer, size);
 	}
 	size_t bytesWritten = serial->write(outBuf, 14);
-	bytesWritten += serial->write(outBuf, 14);           // write twice. just in case
-	if(bytesWritten != 28){
+	if(bytesWritten != 14){
 		serial->close();
 		serial = NULL;
 		std::cout << "Connection lost during write\n";
@@ -126,7 +149,7 @@ int Comms::write(unsigned char * buf, int len) {
 }
 
 void Comms::setOutBuf(){
-	outBuf[0] = 0xff;
+	outBuf[0] = 0xdd;
 	outBuf[1] = out.driveFL;
 	outBuf[2] = out.driveBL;
 	outBuf[3] = out.driveFR;
@@ -137,9 +160,9 @@ void Comms::setOutBuf(){
 	outBuf[8] = out.keyGrabber;
 	outBuf[9] = out.intake;
 	outBuf[10] = out.score;
-	outBuf[11] = out.door;
-	outBuf[12] = crc8.compute(&outBuf[1], 11);
-	outBuf[13] = 0xdd;
+	outBuf[11] = out.doorOut;
+	outBuf[12] = out.doorUp;
+	outBuf[13] = crc8.compute(&outBuf[1], 12);
 }
 
 bool Comms::maintainConnection(){

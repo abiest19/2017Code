@@ -19,6 +19,8 @@ int main(){
 	Comms comms;
 	Robot robot;
     comms.begin();
+	for(int i = 0; i < 8; i++)
+		std::cout << "Joystick " << i << " connection = " << Joystick::isConnected(i) << std::endl;
 
 	while(window.isOpen()){
 		Event event;
