@@ -20,8 +20,6 @@ Servo driveBL;
 Servo driveFR;
 Servo driveBR;
 int jumpPin = JUMP_PIN;
-// declare sonic sensors here
-// using SONIC_T_F_PIN, SONIC_E_F_PIN, ...
 NewPing sonicFront(SONIC_T_F_PIN, SONIC_E_F_PIN) ;
 NewPing sonicLeft(SONIC_T_L_PIN, SONIC_E_L_PIN);
 NewPing sonicRight(SONIC_T_R_PIN, SONIC_E_R_PIN);
@@ -36,8 +34,15 @@ int keyGrabberPin = KEY_GRABBER_PIN;
 
 // Ball IO
 Servo intake;
-Servo scoreServo;
-int doorPin = DOOR_PIN;
+int scorePin = SCORE_PIN;
+int doorOutPin = DOOR_OUT_PIN;
+int doorUpPin = DOOR_UP_PIN;
+
+int compressorPin = COMPRESSOR_PIN;
+
+// timing vars
+unsigned long cycle;
+unsigned long start;
 
 void setup() {
   // init Drivetrain IO
@@ -47,41 +52,67 @@ void setup() {
   driveFR.attach(DRIVE_FR_PIN);
   driveBR.attach(DRIVE_BR_PIN);
   pinMode(jumpPin, OUTPUT);
-  digitalWrite(jumpPin, LOW);
-  // init sonic sensors here
+  digitalWrite(jumpPin, HIGH);
   
   // init Key IO
   shoulderMotor.attach(SHOULDER_MOTOR_PIN);
   wristMotor.attach(WRIST_MOTOR_PIN);
   pinMode(keyGrabberPin, OUTPUT);
-  digitalWrite(keyGrabberPin, LOW);
+  digitalWrite(keyGrabberPin, HIGH);
 
   // init Ball IO
   intake.attach(INTAKE_PIN);
-  scoreServo.attach(SCORE_PIN);
-  pinMode(doorPin, OUTPUT);
-  digitalWrite(doorPin, LOW);
+  pinMode(scorePin, OUTPUT);
+  digitalWrite(scorePin, HIGH);
+  pinMode(doorOutPin, OUTPUT);
+  digitalWrite(doorOutPin, HIGH);
+  pinMode(doorUpPin, OUTPUT);
+  digitalWrite(doorUpPin, HIGH);
+  
+  pinMode(compressorPin, OUTPUT);
+  digitalWrite(compressorPin, HIGH);
+
+  cycle = 0;
+  start = millis();
   
   comm.begin(BAUD_RATE);
+  Serial.begin(9600);
 }
 
 void loop() {
   // Get Robot input values and assign then to RobotIn
-  in.gyroAngle = gyro.getAngle();
-  // set in.sonicDistanceF, ... here
-  
   //write distances to in struct in inches
-  in.sonicDistanceF = sonicFront.ping_in();
-  in.sonicDistanceL = sonicLeft.ping_in();
-  in.sonicDistanceR = sonicRight.ping_in();
-  in.sonicDistanceB = sonicBack.ping_in();
+  switch(cycle%4){
+  case 0:
+    in.sonicDistanceF = sonicFront.ping_in(100);
+    break;
+  case 1:
+    in.sonicDistanceL = sonicLeft.ping_in(100);
+    break;
+  case 2:
+    in.sonicDistanceR = sonicRight.ping_in(100);
+    break;
+  case 3:
+    in.sonicDistanceB = sonicBack.ping_in(100);
+    break;
+  }
+  
+  in.gyroAngle = gyro.getAngle();
   
   in.shoulder = analogRead(shoulderPotPin);
+  //Serial.println(in.shoulder);
   in.wrist = analogRead(wristPotPin);
 
   // Write inputs to PC
   comm.write();
-  delay(16);
+  int delayTime = 16 - (millis() - start);
+  if(delayTime<0)
+    delayTime = 0;
+  delay(delayTime);
+  //Serial.print("cycle time = "); Serial.println(millis()-start);
+  start = millis();
+
+  comm.checkReset();
 
   // Read output values to IO struct
   if(comm.read()){
@@ -97,9 +128,11 @@ void loop() {
     digitalWrite(keyGrabberPin, out.keyGrabber);
     
     intake.write(out.intake);
-    scoreServo.write(out.score);
-    digitalWrite(doorPin, out.door);
-  }else if(comm.getFailures() > 30){
+    digitalWrite(scorePin, out.score);
+    digitalWrite(doorOutPin, out.doorOut);
+    digitalWrite(doorUpPin, out.doorUp);
+    digitalWrite(compressorPin, out.compressor);
+  }else if(comm.getFailures() > 6){
     driveFL.write(90);
     driveBL.write(90);
     driveFR.write(90);
@@ -108,5 +141,7 @@ void loop() {
     wristMotor.write(90);
     intake.write(90);
   }
+
+  cycle++;
 }
 

@@ -3,20 +3,20 @@
 
 struct RobotIn {
 	float gyroAngle;
-  uint8_t sonicDistanceF;
-  uint8_t sonicDistanceL;
-  uint8_t sonicDistanceR;
-  uint8_t sonicDistanceB;
+  float sonicDistanceF;
+  float sonicDistanceL;
+  float sonicDistanceR;
+  float sonicDistanceB;
 
-  uint8_t shoulder;
-  uint8_t wrist;
+  uint16_t shoulder;
+  uint16_t wrist;
 
 	RobotIn() :
 		gyroAngle(0.0f),
-    sonicDistanceF(0),
-    sonicDistanceL(0),
-    sonicDistanceR(0),
-    sonicDistanceB(0),
+    sonicDistanceF(0.0f),
+    sonicDistanceL(0.0f),
+    sonicDistanceR(0.0f),
+    sonicDistanceB(0.0f),
     shoulder(0),
     wrist(0)
 	{}
@@ -34,21 +34,26 @@ struct RobotOut {
   bool keyGrabber;
 
   uint8_t intake;
-  uint8_t score;
-  bool door;
+  bool score;
+  bool doorOut;
+  bool doorUp;
+
+  bool compressor;
 
 	RobotOut() :
 		driveFL(90),
 		driveBL(90),
 		driveFR(90),
 		driveBR(90),
-		omni(false),
+		omni(true),
     shoulder(90),
     wrist(90),
-    keyGrabber(false),
+    keyGrabber(true),
     intake(90),
-    score(90),
-    door(false)
+    score(true),
+    doorOut(true),
+    doorUp(true),
+    compressor(true)
 	{}
 };
 

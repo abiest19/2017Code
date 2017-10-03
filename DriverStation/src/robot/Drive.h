@@ -2,16 +2,15 @@
 
 #include "RobotIO.h"
 #include "Controls.h"
+#include "Constants.h"
 #include <iostream>
 #include <cmath>
-#define PI 3.14159265358979323846f
-#define BLOCK_DISTANCE 3
-#define CONSTANT_SHIFT 1
+#include <ctime>
 
 class Drive {
 public:
-	enum DriveMode { fieldCentric, robotCentric, tank, autonomous, numModes };
-	enum direction { front, right, back, left };
+	enum DriveMode { fieldCentric, robotCentric, tank, autonomous };
+	enum direction { front, left, right, backLeft, backRight, exitLeft, exitRight };
 	Drive(DriveMode _mode);
 	void periodic(const RobotIn& rIn, RobotOut& rOut);
 
@@ -38,17 +37,12 @@ private:
 
 	// button states
 	bool modeBut;
+	bool autoMode;
 	bool gyroCCWBut;
 	bool gyroCWBut;
 
+	DriveMode prevMode;
 	direction directionState;
-	float sonarF;
-	float sonarL;
-	float sonarR;
-	float sonarB;
-	direction getCurrentDirection();
-	direction getNextDirection();
-	bool isBlocked(int dir);
-	void getSonarValue(const RobotIn& rIn);
+	clock_t exitTime;
 
 };

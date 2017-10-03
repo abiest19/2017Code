@@ -2,46 +2,92 @@
 #include <util/crc16.h>
 
 void Comm::begin(long baud_rate) {
-  Serial.begin(baud_rate);
+  Serial2.begin(baud_rate);
+  Serial1.begin(9600);
+  pinMode(COMMS_RESET_PIN, OUTPUT);
+  digitalWrite(COMMS_RESET_PIN, HIGH);
   failures = 0;
+  resetStart = 0;
+  bufferIndex = 0;
+}
+
+void Comm::checkReset(){
+  if(millis()-resetStart > 500 && resetStart != 0){
+    Serial1.println("Reset");
+    digitalWrite(COMMS_RESET_PIN, HIGH);
+    resetStart = 0;
+  }else if(Serial1.available()){
+    char cmd = Serial1.read();
+    if(cmd == '1'){
+      Serial1.println("Received");
+      digitalWrite(COMMS_RESET_PIN, LOW);
+      resetStart = millis();
+      failures = 100;
+    }
+  }
 }
 
 bool Comm::read(){
-  int bytes_avail = Serial.available();
-  //Serial.print("bytes_avail = ");
-  //Serial.println(bytes_avail);
-  if(bytes_avail < 28){
+  //Serial.println(Serial2.available());
+  if (Serial2.available() < READ_LEN-bufferIndex){
     failures++;
     return false;
   }
   
-  Serial.readBytes(read_buf, bytes_avail);
-  for (int i = bytes_avail - 1; i >= 13; i --) {   // search for last complete packet
-    if (read_buf[i] == 0xdd && read_buf[i - 13] == 0xff) {   // a complete packet
-      uint8_t crc = _crc8(&read_buf[i - 12], 11);
-      if (crc != read_buf[i - 1]) {
-        i -= 14;
-        continue;
+  if(Serial2.readBytes(read_buf + bufferIndex, READ_LEN-bufferIndex) < READ_LEN-bufferIndex){
+    bufferIndex = 0;
+    failures++;
+    return false;
+  }
+  bufferIndex = 0;
+  
+  // if the start byte is not first we have a problem
+  while(read_buf[0] != 0xdd || read_buf[READ_LEN-1] != _crc8(&read_buf[1], READ_LEN-2)){
+    // attempt to recover
+    int i;
+    for(i=1; i<READ_LEN; i++)
+      if(read_buf[i] == 0xdd)
+        break;
+    if(i >= READ_LEN){
+      // recovery failed, attempt another read in case we have more bytes in the buffer
+      return Comm::read();
+    }else{
+      // found possible start byte, attempt to read rest of message
+      for(int j=i; j<READ_LEN; j++){
+        read_buf[j-i] = read_buf[j];
       }
-      //Serial.println("Read successful");
-      _out_struct->driveFL = read_buf[i - 12];     //TODO: potential race condition. No synchronization primitives
-      _out_struct->driveBL = read_buf[i - 11];
-      _out_struct->driveFR = read_buf[i - 10];
-      _out_struct->driveBR = read_buf[i - 9];
-      _out_struct->omni    = read_buf[i - 8];
-      _out_struct->shoulder= read_buf[i - 7];
-      _out_struct->wrist   = read_buf[i - 6];
-      _out_struct->keyGrabber= read_buf[i - 5];
-      _out_struct->intake  = read_buf[i - 4];
-      _out_struct->score   = read_buf[i - 3];
-      _out_struct->door    = read_buf[i - 2];
-      break;
+      if(Serial.available() >= i){
+        // rest of message available
+        if(Serial.readBytes(&read_buf[READ_LEN-i], i) < i){
+          //Serial.println("didn't read rest of READ_LEN");
+          failures++;
+          return false;
+        }
+      }else{
+        // wait for rest of message
+        // we have to check next function call because this function cannot be blocking
+        bufferIndex = READ_LEN - i;
+        //Serial.println("wait for rest of message");
+        failures++;
+        return false;
+      }
     }
   }
+
+  _out_struct->driveFL   = read_buf[1];     //TODO: potential race condition. No synchronization primitives
+  _out_struct->driveBL   = read_buf[2];
+  _out_struct->driveFR   = read_buf[3];
+  _out_struct->driveBR   = read_buf[4];
+  _out_struct->omni      = read_buf[5];
+  _out_struct->shoulder  = read_buf[6];
+  _out_struct->wrist     = read_buf[7];
+  _out_struct->keyGrabber= read_buf[8];
+  _out_struct->intake    = read_buf[9];
+  _out_struct->score     = read_buf[10];
+  _out_struct->doorOut   = read_buf[11];
+  _out_struct->doorUp    = read_buf[12];
+  _out_struct->compressor= read_buf[13];
   
-//  for (int i = 0; i < 8; i++)
-//    Serial.print(buf[i], HEX);
-//  Serial.println(_in_struct->gyroAngle);
   failures = 0;
   return true;
 }
@@ -49,25 +95,24 @@ bool Comm::read(){
 void Comm::write(){
   setOutBuf();
   if(failures == 0){
-    while(Serial.available() > 0) {
-      char t = Serial.read();
+    while(Serial2.available() > 0) {
+      char t = Serial2.read();
     }
   }
-  Serial.write(outBuf, 13);
-  Serial.write(outBuf, 13);
+  Serial2.write(outBuf, 26);
 }
 
 int Comm::write(unsigned char * msg, int len) {
-  return Serial.write(msg, len);
+  return Serial2.write(msg, len);
 }
 
 int Comm::read(unsigned char * buf, int bufsize) {
-  int bytes_avail = Serial.available();
+  int bytes_avail = Serial2.available();
   if(bytes_avail < 4){
     failures++;
     return false;
   }
-  Serial.readBytes(read_buf, bytes_avail);
+  Serial2.readBytes(read_buf, bytes_avail);
   for (int i = bytes_avail - 1; i >= 3; i --) {
     if (buf[i] == 0xdd) {
       unsigned char len = read_buf[i - 1];
@@ -81,17 +126,17 @@ int Comm::read(unsigned char * buf, int bufsize) {
 }
 
 void Comm::setOutBuf(){
-  outBuf[0] = 0xff;
+  outBuf[0] = 0xdd;
   float *tmp = (float *)(outBuf + 1);
   *tmp = _in_struct->gyroAngle;
-  outBuf[5] = _in_struct->sonicDistanceF;
-  outBuf[6] = _in_struct->sonicDistanceL;
-  outBuf[7] = _in_struct->sonicDistanceR;
-  outBuf[8] = _in_struct->sonicDistanceB;
-  outBuf[9] = _in_struct->shoulder;
-  outBuf[10] = _in_struct->wrist;
-  outBuf[11] = _crc8(&outBuf[1], 10);
-  outBuf[12] = 0xdd;
+  *(tmp+1) = _in_struct->sonicDistanceF;
+  *(tmp+2) = _in_struct->sonicDistanceL;
+  *(tmp+3) = _in_struct->sonicDistanceR;
+  *(tmp+4) = _in_struct->sonicDistanceB;
+  uint16_t *tmp2 = (uint16_t *)(outBuf + 21);
+  *tmp2 = _in_struct->shoulder;
+  *(tmp2+1) = _in_struct->wrist;
+  outBuf[25] = _crc8(&outBuf[1], 24);
 }
 
 Comm::~Comm() {

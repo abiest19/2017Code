@@ -2,15 +2,45 @@
 
 Drive::Drive(DriveMode _mode){
 	mode = _mode;
+	modeBut = false;
+	autoMode = false;
+	gyroCCWBut = false;
+	gyroCWBut = false;
 }
 
 void Drive::periodic(const RobotIn& rIn, RobotOut& rOut){
 	bool isPressed = CTRL_TOGGLE_MODE;
 	if (isPressed && !modeBut){
-		mode = (DriveMode)((mode + 1) % numModes);
+		mode = (DriveMode)(mode + 1);
+		if(mode == autonomous){
+			mode = fieldCentric;
+		}
 		std::cout << "Mode changed to " << mode << std::endl;
 	}
 	modeBut = isPressed;
+
+	bool autoBut = CTRL_AUTO_MODE;
+	if (autoBut && !autoMode){
+		if(mode == autonomous){
+			robotCentricControl(rOut, 0, 0, 0);
+			mode = prevMode;
+		} else{
+			prevMode = mode;
+			mode = autonomous;
+			directionState = front;
+			std::cout << "Mode changed to autonomous" << std::endl;
+		}
+	}
+	autoMode = autoBut;
+	
+	if (CTRL_COMP_ON){
+		rOut.compressor = false;
+	}
+	if (CTRL_COMP_OFF){
+		rOut.compressor = true;
+	}
+
+	//std::cout << "comp=" << rOut.compressor << std::endl;
 	switch (mode){
 	case fieldCentric: {
 		if (CTRL_GYRO_RESET){
@@ -44,6 +74,7 @@ void Drive::periodic(const RobotIn& rIn, RobotOut& rOut){
 		break;
 	case autonomous:
 		autonomousControl(rIn, rOut);
+		rOut.omni = true;
 		break;
 	}
 }
@@ -91,59 +122,58 @@ void Drive::robotCentricControl(RobotOut& rOut, float transX, float transY, floa
 
 
 void Drive::autonomousControl(const RobotIn& rIn, RobotOut& rOut){
-	directionState = front;
 	switch (directionState){
 	case front:
-		/*move in direction1*/
-		getSonarValue(rIn);
-		if (isBlocked(sonarF)) directionState = getNextDirection();
-		robotCentricControl(rOut, 0, CONSTANT_SHIFT, 0);
-		break;
-	case right:
-		/*move in direction2*/
-		getSonarValue(rIn);
-		if (isBlocked(sonarR)) directionState = getNextDirection();
-		robotCentricControl(rOut, CONSTANT_SHIFT, 0, 0);
-		break;
-	case back:
-		/*move in direction3*/
-		getSonarValue(rIn);
-		if (isBlocked(sonarB)) directionState = getNextDirection();
-		robotCentricControl(rOut, 0, -CONSTANT_SHIFT, 0);
+		if(rIn.sonicDistanceF < BLOCK_DISTANCE){
+			if(rIn.sonicDistanceL > rIn.sonicDistanceR){
+				directionState = left;
+			} else {
+				directionState = right;
+			}
+		}
+		robotCentricControl(rOut, 0, AUTO_SPEED, 0);
 		break;
 	case left:
-		/*move in direction4*/
-		getSonarValue(rIn);
-		if (isBlocked(sonarL)) directionState = getNextDirection();
-		robotCentricControl(rOut, -CONSTANT_SHIFT, 0, 0);
+		if(rIn.sonicDistanceL < BLOCK_DISTANCE){
+			directionState = backLeft;
+		}
+		robotCentricControl(rOut, -AUTO_SPEED, 0, 0);
+		break;
+	case right:
+		if(rIn.sonicDistanceR < BLOCK_DISTANCE){
+			directionState = backRight;
+		}
+		robotCentricControl(rOut, AUTO_SPEED, 0, 0);
+		break;
+	case backLeft:
+		if(rIn.sonicDistanceB < BLOCK_DISTANCE){
+			directionState = exitLeft;
+			exitTime = clock();
+		}
+		robotCentricControl(rOut, 0, -AUTO_SPEED, 0);
+		break;
+	case backRight:
+		if(rIn.sonicDistanceB < BLOCK_DISTANCE){
+			directionState = exitRight;
+			exitTime = clock();
+		}
+		robotCentricControl(rOut, 0, -AUTO_SPEED, 0);
+		break;
+	case exitLeft:
+		if ((clock() - exitTime)/CLOCKS_PER_SEC > EXIT_DELAY){
+			robotCentricControl(rOut, 0, 0, 0);
+			mode = prevMode;
+		} else {
+			robotCentricControl(rOut, -AUTO_SPEED, 0, 0);
+		}
+		break;
+	case exitRight:
+		if((clock() - exitTime) / CLOCKS_PER_SEC > EXIT_DELAY){
+			robotCentricControl(rOut, 0, 0, 0);
+			mode = prevMode;
+		} else {
+			robotCentricControl(rOut, AUTO_SPEED, 0, 0);
+		}
 		break;
 	}
-}
-
-Drive::direction Drive::getNextDirection(){
-	if (directionState == front || directionState == back){
-		if (isBlocked(right)) return left;
-		else return right;
-	}
-	else {
-		if (isBlocked(front)) return back;
-		else return front;
-	}
-}
-
-Drive::direction Drive::getCurrentDirection(){
-	return directionState;
-}
-
-bool Drive::isBlocked(int dis){
-	if (dis < BLOCK_DISTANCE) return true;	//need to define max distance
-	return false;
-}
-
-void Drive::getSonarValue(const RobotIn& rIn){
-	sonarF = rIn.sonicDistanceF;
-	sonarR = rIn.sonicDistanceR;
-	sonarB = rIn.sonicDistanceB;
-	sonarL = rIn.sonicDistanceL;
-	//read sonar value from robot
 }
