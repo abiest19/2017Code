@@ -2,9 +2,6 @@
 
 Ball::Ball() {
 	scoring = false;
-	scoreStartTime = 0;
-	intakeState = false;
-	lastGrabIntakeKey = false;
 	lastGrabDoorOutKey = false;
 	lastGrabDoorUpKey = false;
 }
@@ -12,21 +9,17 @@ Ball::Ball() {
 void Ball::periodic(const RobotIn& rIn, RobotOut& rOut) {
 
 	// If ball intake button is pressed (create in Controls.h), toggle intake motor
-	if (CTRL_INTAKE && !lastGrabIntakeKey) {
-		intakeState = !intakeState;
-	}
-	lastGrabIntakeKey = CTRL_INTAKE;
-
-	if (intakeState) {
+	if (CTRL_INTAKE) {
 		rOut.intake = INTAKE_ON;
-	}
-	else {
+	} else if (CTRL_INTAKE_REV){
+		rOut.intake = INTAKE_REV;
+	} else {
 		rOut.intake = INTAKE_OFF;
 	}
-
+	//rOut.intake = uint8_t((CTRL_MAN_WRIST + 1) * 90);
 
 	// If raise door button is pressed, toggle solenoid
-	if(CTRL_DOOR_OUT && !lastGrabDoorOutKey) {
+	if (CTRL_DOOR_OUT && !lastGrabDoorOutKey && !(!rOut.doorOut && !rOut.doorUp)) {
 		rOut.doorOut = !rOut.doorOut;
 	}
 	lastGrabDoorOutKey = CTRL_DOOR_OUT;
@@ -37,16 +30,10 @@ void Ball::periodic(const RobotIn& rIn, RobotOut& rOut) {
 	lastGrabDoorUpKey = CTRL_DOOR_UP;
 
 	// If score button, toggle score motor for some period of time
-	if (CTRL_SCORE) {
-		scoring = true;
-		scoreStartTime = clock(); // Get current time
-		rOut.score = SCORE_POSN;
+	if (CTRL_SCORE && !scoring) {
+		rOut.score = !rOut.score;
 	}
-
-	if (scoring && ((double)(clock() - scoreStartTime) / CLOCKS_PER_SEC > HOLD_TIME)) {
-		scoring = false;
-		rOut.score = HOLD_POSN;
-	}
+	scoring = CTRL_SCORE;
 
 
 }

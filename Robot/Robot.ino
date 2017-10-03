@@ -34,9 +34,11 @@ int keyGrabberPin = KEY_GRABBER_PIN;
 
 // Ball IO
 Servo intake;
-Servo scoreServo;
+int scorePin = SCORE_PIN;
 int doorOutPin = DOOR_OUT_PIN;
 int doorUpPin = DOOR_UP_PIN;
+
+int compressorPin = COMPRESSOR_PIN;
 
 // timing vars
 unsigned long cycle;
@@ -60,11 +62,15 @@ void setup() {
 
   // init Ball IO
   intake.attach(INTAKE_PIN);
-  scoreServo.attach(SCORE_PIN);
+  pinMode(scorePin, OUTPUT);
+  digitalWrite(scorePin, HIGH);
   pinMode(doorOutPin, OUTPUT);
   digitalWrite(doorOutPin, HIGH);
   pinMode(doorUpPin, OUTPUT);
   digitalWrite(doorUpPin, HIGH);
+  
+  pinMode(compressorPin, OUTPUT);
+  digitalWrite(compressorPin, HIGH);
 
   cycle = 0;
   start = millis();
@@ -106,6 +112,8 @@ void loop() {
   //Serial.print("cycle time = "); Serial.println(millis()-start);
   start = millis();
 
+  comm.checkReset();
+
   // Read output values to IO struct
   if(comm.read()){
     // Write RobotOut values to outputs
@@ -120,9 +128,10 @@ void loop() {
     digitalWrite(keyGrabberPin, out.keyGrabber);
     
     intake.write(out.intake);
-    scoreServo.write(out.score);
+    digitalWrite(scorePin, out.score);
     digitalWrite(doorOutPin, out.doorOut);
     digitalWrite(doorUpPin, out.doorUp);
+    digitalWrite(compressorPin, out.compressor);
   }else if(comm.getFailures() > 6){
     driveFL.write(90);
     driveBL.write(90);

@@ -1,6 +1,6 @@
 #pragma once
 
-#define BAUD_RATE	57600
+#define BAUD_RATE	9600
 #define TIMEOUT		500
 #define BUF_SIZE    2048
 
@@ -8,6 +8,7 @@
 #include "CRC8.h"
 #include <serial/serial.h>
 #include <iostream>
+#include <cmath>
 #include <windows.h>
 using namespace serial;
 
@@ -38,7 +39,7 @@ private:
     RobotIn in;
     CRC8 crc8;
 
-	unsigned char outBuf[14];
+	unsigned char outBuf[15];
 	uint8_t readBuf[BUF_SIZE];
 	size_t bufferIndex;
 	void setOutBuf();

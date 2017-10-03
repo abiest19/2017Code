@@ -1,49 +1,24 @@
 #include "Key.h"
 
-Key::Key() :
-shoulderPid(PID::distance, SHOULDER_KP, SHOULDER_KI, SHOULDER_KD),
-wristPid(PID::distance, WRIST_KP, WRIST_KI, WRIST_KD)
+Key::Key()
 {
 	lastGrabKey = false;
-	state = manual;
-	shoulderPid.setOutputLimits(0, 180);
-	wristPid.setOutputLimits(0, 180);
 }
 
 void Key::periodic(const RobotIn& rIn, RobotOut& rOut){
-	if(CTRL_RETRIEVE_POS){
-		state = retrieve;
-		shoulderPid.setTarget(SHOULDER_RET_POS);
-		shoulderPid.reset();
-		wristPid.setTarget(WRIST_RET_POS);
-		wristPid.reset();
+	double shoulder = CTRL_MAN_SHOULDER*MAN_SHOULDER_SPEED;
+	if (!CTRL_STOP_HOLD){
+		double holdOffset = 0.25*sin((rIn.shoulder - SHOULDER_MID)*SHOULDER_RAD);
+		if (holdOffset > 0.2)
+			holdOffset = 0.2;
+		if (holdOffset < -0.2)
+			holdOffset = -0.2;
+		shoulder += holdOffset;
 	}
-	if(CTRL_INS_POS){
-		state = insert;
-		shoulderPid.setTarget(SHOULDER_INS_POS);
-		shoulderPid.reset();
-		wristPid.setTarget(WRIST_INS_POS);
-		wristPid.reset();
-	}
-	if(CTRL_MAN_SHOULDER != 0.0f){
-		state = manual;
-	}
-	if(CTRL_MAN_WRIST != 0.0f){
-		state = manual;
-	}
-
-	bool inPos = true;
-	switch(state){
-	case manual:
-		rOut.shoulder = uint8_t((CTRL_MAN_SHOULDER*MAN_SHOULDER_SPEED + 1) * 90);
-		rOut.wrist = uint8_t((CTRL_MAN_WRIST*MAN_WRIST_SPEED + 1) * 90);
-		break;
-	case retrieve:
-	case insert:
-		rOut.shoulder = (uint8_t)shoulderPid.compute(rIn.shoulder);
-		rOut.wrist = (uint8_t)wristPid.compute(rIn.wrist);
-		break;
-	}
+	rOut.shoulder = uint8_t((shoulder + 1) * 90);
+	//std::cout << "in = " << rIn.shoulder << " out = " << (int)rOut.shoulder << std::endl;
+	rOut.wrist = uint8_t((CTRL_MAN_WRIST*MAN_WRIST_SPEED + 1) * 90);
+	//std::cout << "wrist = " << (int)rOut.wrist << std::endl;
 
 	// grab key
 	bool isPressed = CTRL_GRAB_KEY;

@@ -3,8 +3,28 @@
 
 void Comm::begin(long baud_rate) {
   Serial2.begin(baud_rate);
+  Serial1.begin(9600);
+  pinMode(COMMS_RESET_PIN, OUTPUT);
+  digitalWrite(COMMS_RESET_PIN, HIGH);
   failures = 0;
+  resetStart = 0;
   bufferIndex = 0;
+}
+
+void Comm::checkReset(){
+  if(millis()-resetStart > 500 && resetStart != 0){
+    Serial1.println("Reset");
+    digitalWrite(COMMS_RESET_PIN, HIGH);
+    resetStart = 0;
+  }else if(Serial1.available()){
+    char cmd = Serial1.read();
+    if(cmd == '1'){
+      Serial1.println("Received");
+      digitalWrite(COMMS_RESET_PIN, LOW);
+      resetStart = millis();
+      failures = 100;
+    }
+  }
 }
 
 bool Comm::read(){
@@ -66,6 +86,7 @@ bool Comm::read(){
   _out_struct->score     = read_buf[10];
   _out_struct->doorOut   = read_buf[11];
   _out_struct->doorUp    = read_buf[12];
+  _out_struct->compressor= read_buf[13];
   
   failures = 0;
   return true;
